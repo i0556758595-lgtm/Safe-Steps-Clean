@@ -2,10 +2,11 @@ package com.example.safesteps;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
-import android.graphics.drawable.GradientDrawable;
+import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.text.InputType;
@@ -13,199 +14,710 @@ import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.PopupMenu;
-import android.widget.Space;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 public class MainActivity extends Activity {
+
     public static final String PREFS = "safe_steps";
-    public static final String PASSWORD = "password";
+    public static final String ENABLED = "protection_enabled";
+    public static final String PASSWORD = "admin_password";
     public static final String PASSWORD_TYPE = "password_type";
-    public static final String PATTERN = "pattern";
-    public static final String ENABLED = "enabled";
-    public static final String SHOW_BLOCKED_SCREEN = "show_blocked_screen";
-    private static final String DEFAULT_PASSWORD = "1234";
+
     private static final String TYPE_PIN = "pin";
     private static final String TYPE_PATTERN = "pattern";
 
-    private TextView state;
+    private LinearLayout root;
+    private TextView statusText;
+    private TextView passwordTypeText;
 
-    @Override protected void onCreate(Bundle savedInstanceState) {
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        if (getIntent().getBooleanExtra(SHOW_BLOCKED_SCREEN, false)) showBlockedPage();
-        else buildMain();
+
+        initializeDefaults();
+        buildScreen();
     }
 
-    private int dp(float v) { return (int) (v * getResources().getDisplayMetrics().density + 0.5f); }
+    private void initializeDefaults() {
+        android.content.SharedPreferences prefs =
+                getSharedPreferences(PREFS, MODE_PRIVATE);
 
-    private GradientDrawable gradient(int[] colors, float radius) {
-        GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, colors);
-        g.setCornerRadius(dp(radius));
-        return g;
+        if (!prefs.contains(PASSWORD)) {
+            prefs.edit()
+                    .putString(PASSWORD, "1234")
+                    .putString(PASSWORD_TYPE, TYPE_PIN)
+                    .putBoolean(ENABLED, false)
+                    .apply();
+        } else if (!prefs.contains(PASSWORD_TYPE)) {
+            prefs.edit()
+                    .putString(PASSWORD_TYPE, TYPE_PIN)
+                    .apply();
+        }
     }
 
-    private GradientDrawable solid(int color, float radius) {
-        GradientDrawable g = new GradientDrawable();
-        g.setColor(color); g.setCornerRadius(dp(radius));
-        return g;
-    }
+    private void buildScreen() {
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setBackgroundColor(Color.rgb(245, 248, 252));
 
-    private TextView text(String value, float size, int color, boolean bold) {
-        TextView t = new TextView(this);
-        t.setText(value); t.setTextSize(size); t.setTextColor(color); t.setGravity(Gravity.CENTER);
-        if (bold) t.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        return t;
-    }
-
-    private void buildMain() {
-        LinearLayout root = new LinearLayout(this);
+        root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(20), dp(18), dp(20), dp(20));
-        root.setBackground(gradient(new int[]{Color.rgb(7, 25, 54), Color.rgb(8, 83, 113), Color.rgb(75, 34, 123)}, 0));
-        root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        root.setPadding(dp(20), dp(20), dp(20), dp(30));
 
-        LinearLayout header = new LinearLayout(this);
-        header.setGravity(Gravity.CENTER_VERTICAL);
-        ImageView icon = new ImageView(this); icon.setImageResource(R.drawable.ic_guard);
-        header.addView(icon, new LinearLayout.LayoutParams(dp(66), dp(66)));
-        Space gap = new Space(this); header.addView(gap, new LinearLayout.LayoutParams(dp(12), 1));
-        LinearLayout names = new LinearLayout(this); names.setOrientation(LinearLayout.VERTICAL); names.setGravity(Gravity.CENTER_VERTICAL);
-        TextView name = text("Safe Steps", 27, Color.WHITE, true); name.setGravity(Gravity.RIGHT);
-        TextView tagline = text("צעדים בטוחים בשבילך", 14, Color.rgb(206,240,246), false); tagline.setGravity(Gravity.RIGHT);
-        names.addView(name); names.addView(tagline);
-        header.addView(names, new LinearLayout.LayoutParams(0, -2, 1));
-        TextView menu = text("⋮", 32, Color.WHITE, false);
-        menu.setOnClickListener(v -> showMenu(menu));
-        header.addView(menu, new LinearLayout.LayoutParams(dp(48), dp(60)));
-        root.addView(header);
+        scroll.addView(root);
+        setContentView(scroll);
 
-        Space s1 = new Space(this); root.addView(s1, new LinearLayout.LayoutParams(1, dp(25)));
-
-        LinearLayout hero = new LinearLayout(this);
-        hero.setOrientation(LinearLayout.VERTICAL); hero.setGravity(Gravity.CENTER_HORIZONTAL);
-        hero.setPadding(dp(22), dp(22), dp(22), dp(22));
-        hero.setBackground(gradient(new int[]{Color.argb(235, 255,255,255), Color.argb(220, 235,248,255)}, 28));
-        TextView title = text("מרכז ההגנה", 17, Color.rgb(45,63,80), true); hero.addView(title);
-        ImageView heroIcon = new ImageView(this); heroIcon.setImageResource(R.drawable.ic_guard);
-        hero.addView(heroIcon, new LinearLayout.LayoutParams(dp(100), dp(100)));
-        state = text("", 25, Color.rgb(10, 137, 105), true); hero.addView(state, new LinearLayout.LayoutParams(-1, dp(50)));
-        TextView sub = text("המערכת פעילה ברקע ומנטרת את המסכים המוגנים", 14, Color.rgb(75,95,108), false); hero.addView(sub, new LinearLayout.LayoutParams(-1, dp(48)));
-        Button toggle = new Button(this);
-        toggle.setText("הפעל / כבה הגנה"); toggle.setTextSize(17); toggle.setTextColor(Color.WHITE); toggle.setAllCaps(false);
-        toggle.setBackground(gradient(new int[]{Color.rgb(20, 190, 168), Color.rgb(40, 106, 215)}, 18));
-        toggle.setOnClickListener(v -> toggleProtection());
-        hero.addView(toggle, new LinearLayout.LayoutParams(-1, dp(56)));
-        root.addView(hero);
-
-        Space s2 = new Space(this); root.addView(s2, new LinearLayout.LayoutParams(1, dp(16)));
-
-        LinearLayout row = new LinearLayout(this); row.setGravity(Gravity.CENTER); row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        row.addView(infoCard("נגישות", "חסומה במצב הגנה", R.drawable.ic_guard), weightParams());
-        Space g1 = new Space(this); row.addView(g1, new LinearLayout.LayoutParams(dp(10),1));
-        row.addView(infoCard("התקנות", "חסומות במצב הגנה", R.drawable.ic_guard), weightParams());
-        root.addView(row);
-
-        Space s3 = new Space(this); root.addView(s3, new LinearLayout.LayoutParams(1, dp(14)));
-        Button acc = new Button(this); acc.setText("פתיחת הגדרות נגישות"); acc.setTextSize(16); acc.setAllCaps(false); acc.setTextColor(Color.rgb(20,54,75));
-        acc.setBackground(solid(Color.WHITE, 18)); acc.setOnClickListener(v -> startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
-        root.addView(acc, new LinearLayout.LayoutParams(-1, dp(52)));
-        updateState(); setContentView(root);
+        buildHeader();
+        buildStatusCard();
+        buildAccessibilityCard();
+        buildButtons();
     }
 
-    private LinearLayout.LayoutParams weightParams() { return new LinearLayout.LayoutParams(0, dp(105), 1); }
+    private void buildHeader() {
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.VERTICAL);
+        header.setGravity(Gravity.CENTER);
+        header.setPadding(0, dp(15), 0, dp(20));
 
-    private View infoCard(String title, String sub, int iconRes) {
-        LinearLayout c = new LinearLayout(this); c.setOrientation(LinearLayout.VERTICAL); c.setGravity(Gravity.CENTER); c.setPadding(dp(8),dp(8),dp(8),dp(8)); c.setBackground(solid(Color.argb(225,255,255,255),20));
-        ImageView i = new ImageView(this); i.setImageResource(iconRes); c.addView(i,new LinearLayout.LayoutParams(dp(38),dp(38)));
-        TextView t=text(title,15,Color.rgb(35,60,77),true); c.addView(t);
-        TextView s=text(sub,11,Color.rgb(85,105,117),false); c.addView(s);
-        return c;
+        TextView logo = new TextView(this);
+        logo.setText("🛡");
+        logo.setTextSize(64);
+        logo.setGravity(Gravity.CENTER);
+        header.addView(logo, matchWrap());
+
+        TextView title = new TextView(this);
+        title.setText("S");
+        title.setTextSize(48);
+        title.setTextColor(Color.rgb(32, 111, 220));
+        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        title.setGravity(Gravity.CENTER);
+        header.addView(title, matchWrap());
+
+        TextView name = new TextView(this);
+        name.setText("Safe Steps");
+        name.setTextSize(30);
+        name.setTextColor(Color.rgb(25, 42, 72));
+        name.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        name.setGravity(Gravity.CENTER);
+        header.addView(name, matchWrap());
+
+        TextView tagline = new TextView(this);
+        tagline.setText("צעדים בטוחים בשבילך");
+        tagline.setTextSize(17);
+        tagline.setTextColor(Color.rgb(82, 101, 125));
+        tagline.setGravity(Gravity.CENTER);
+        header.addView(tagline, matchWrap());
+
+        LinearLayout.LayoutParams hp =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT);
+
+        root.addView(header, hp);
+    }
+
+    private void buildStatusCard() {
+        LinearLayout card = createCard();
+        card.setOrientation(LinearLayout.VERTICAL);
+
+        TextView title = text("מצב ההגנה", 21, Color.rgb(25, 42, 72), true);
+        card.addView(title, matchWrap());
+
+        statusText = text("", 19, Color.DKGRAY, true);
+        statusText.setPadding(0, dp(10), 0, dp(4));
+        card.addView(statusText, matchWrap());
+
+        passwordTypeText = text("", 15, Color.rgb(90, 105, 125), false);
+        card.addView(passwordTypeText, matchWrap());
+
+        Button toggle = new Button(this);
+        toggle.setAllCaps(false);
+        toggle.setTextSize(17);
+        toggle.setText("שינוי מצב ההגנה");
+        toggle.setOnClickListener(v -> toggleProtection());
+
+        LinearLayout.LayoutParams bp =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        dp(54));
+        bp.topMargin = dp(15);
+
+        card.addView(toggle, bp);
+
+        root.addView(card, cardParams());
+        updateState();
+    }
+
+    private void buildAccessibilityCard() {
+        LinearLayout card = createCard();
+        card.setOrientation(LinearLayout.VERTICAL);
+
+        TextView title = text(
+                "שירות ההגנה",
+                21,
+                Color.rgb(25, 42, 72),
+                true
+        );
+        card.addView(title, matchWrap());
+
+        TextView info = text(
+                "כדי ש־Safe Steps יוכל להגן על המכשיר, " +
+                        "יש להפעיל את שירות הנגישות של האפליקציה.",
+                16,
+                Color.rgb(82, 101, 125),
+                false
+        );
+        info.setPadding(0, dp(10), 0, dp(10));
+        card.addView(info, matchWrap());
+
+        Button settingsButton = new Button(this);
+        settingsButton.setText("פתיחת הגדרות נגישות");
+        settingsButton.setTextSize(17);
+        settingsButton.setAllCaps(false);
+
+        settingsButton.setOnClickListener(v -> {
+            try {
+                Intent intent =
+                        new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+                startActivity(intent);
+            } catch (Exception e) {
+                Toast.makeText(
+                        this,
+                        "לא ניתן לפתוח את הגדרות הנגישות",
+                        Toast.LENGTH_SHORT
+                ).show();
+            }
+        });
+
+        card.addView(settingsButton, matchWrap());
+
+        root.addView(card, cardParams());
+    }
+
+    private void buildButtons() {
+        Button menuButton = new Button(this);
+        menuButton.setText("⋮");
+        menuButton.setTextSize(30);
+        menuButton.setAllCaps(false);
+
+        menuButton.setOnClickListener(this::showMenu);
+
+        LinearLayout.LayoutParams params =
+                new LinearLayout.LayoutParams(
+                        dp(65),
+                        dp(60));
+
+        params.gravity = Gravity.CENTER_HORIZONTAL;
+        params.topMargin = dp(5);
+
+        root.addView(menuButton, params);
     }
 
     private void showMenu(View anchor) {
-        PopupMenu p = new PopupMenu(this, anchor, Gravity.END);
-        p.getMenu().add("שינוי סיסמת מנהל"); p.getMenu().add("אודות");
-        p.setOnMenuItemClickListener(item -> { if (item.getTitle().toString().startsWith("שינוי")) showChangePassword(); else showAbout(); return true; });
-        p.show();
+        PopupMenu menu = new PopupMenu(this, anchor);
+
+        menu.getMenu().add("שינוי סיסמת מנהל");
+        menu.getMenu().add("אודות");
+
+        menu.setOnMenuItemClickListener(item -> {
+            String title = item.getTitle().toString();
+
+            if ("שינוי סיסמת מנהל".equals(title)) {
+                changePassword();
+                return true;
+            }
+
+            if ("אודות".equals(title)) {
+                showAbout();
+                return true;
+            }
+
+            return false;
+        });
+
+        menu.show();
     }
 
     private void toggleProtection() {
-        showCredentialDialog("שינוי מצב ההגנה", "הזינו את סיסמת המנהל כדי להמשיך.", true, ok -> {
-            getSharedPreferences(PREFS,0).edit().putBoolean(ENABLED,!isEnabled()).apply(); updateState();
+        showCredentialDialog(
+                "שינוי מצב ההגנה",
+                "הזינו את סיסמת המנהל כדי להמשיך.",
+                true,
+                () -> {
+                    boolean current =
+                            getSharedPreferences(PREFS, MODE_PRIVATE)
+                                    .getBoolean(ENABLED, false);
+
+                    getSharedPreferences(PREFS, MODE_PRIVATE)
+                            .edit()
+                            .putBoolean(ENABLED, !current)
+                            .apply();
+
+                    updateState();
+                }
+        );
+    }
+
+    private void changePassword() {
+        showCredentialDialog(
+                "אימות מנהל",
+                "הזינו את סיסמת המנהל הנוכחית.",
+                true,
+                this::chooseNewPassword
+        );
+    }
+
+    private void chooseNewPassword() {
+        AlertDialog.Builder builder =
+                new AlertDialog.Builder(this);
+
+        builder.setTitle("בחירת סוג סיסמה");
+        builder.setItems(
+                new String[]{
+                        "סיסמה מספרית",
+                        "סיסמת קווים"
+                },
+                (dialog, which) -> {
+                    if (which == 0) {
+                        setNewPin();
+                    } else {
+                        setNewPattern();
+                    }
+                }
+        );
+
+        builder.show();
+    }
+
+    private void setNewPin() {
+        final EditText input = new EditText(this);
+
+        input.setHint("לפחות 4 ספרות");
+        input.setInputType(
+                InputType.TYPE_CLASS_NUMBER |
+                        InputType.TYPE_NUMBER_VARIATION_PASSWORD
+        );
+
+        input.setPadding(
+                dp(20),
+                dp(10),
+                dp(20),
+                dp(10)
+        );
+
+        AlertDialog dialog =
+                new AlertDialog.Builder(this)
+                        .setTitle("סיסמה מספרית חדשה")
+                        .setMessage("בחרו סיסמה מספרית חדשה.")
+                        .setView(input)
+                        .setNegativeButton("ביטול", null)
+                        .setPositiveButton("שמירה", null)
+                        .create();
+
+        dialog.setOnShowListener(d -> {
+            Button positive =
+                    dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+
+            positive.setOnClickListener(v -> {
+                String value =
+                        input.getText().toString().trim();
+
+                if (value.length() < 4) {
+                    input.setError("יש להזין לפחות 4 ספרות");
+                    return;
+                }
+
+                getSharedPreferences(PREFS, MODE_PRIVATE)
+                        .edit()
+                        .putString(PASSWORD, value)
+                        .putString(PASSWORD_TYPE, TYPE_PIN)
+                        .apply();
+
+                dialog.dismiss();
+
+                Toast.makeText(
+                        this,
+                        "הסיסמה עודכנה בהצלחה",
+                        Toast.LENGTH_SHORT
+                ).show();
+
+                updateState();
+            });
         });
+
+        dialog.show();
     }
 
-    private interface CredentialCallback { void success(); }
+    private void setNewPattern() {
+        PatternLockView patternView =
+                new PatternLockView(this);
 
-    private void showCredentialDialog(String title, String message, boolean allowCancel, CredentialCallback callback) {
-        LinearLayout box=new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(22),dp(8),dp(22),0);
-        box.setBackground(gradient(new int[]{Color.rgb(9,40,79),Color.rgb(11,101,128)},22));
-        TextView hint=text("שיטת הסיסמה הנוכחית: "+(isPattern()?"סיסמת קווים":"קוד מספרי"),15,Color.rgb(220,245,250),true); hint.setGravity(Gravity.RIGHT); box.addView(hint,new LinearLayout.LayoutParams(-1,dp(38)));
-        final EditText pin=field("הקלידו את הקוד"); pin.setInputType(InputType.TYPE_CLASS_NUMBER|InputType.TYPE_NUMBER_VARIATION_PASSWORD);
-        final PatternLockView pattern=new PatternLockView(this); pattern.setVisibility(isPattern()?View.VISIBLE:View.GONE); box.addView(pin,new LinearLayout.LayoutParams(-1,dp(54))); box.addView(pattern,new LinearLayout.LayoutParams(-1,dp(280)));
-        final TextView patternText=text("ציירו את התבנית שלכם",15,Color.WHITE,false); patternText.setVisibility(isPattern()?View.VISIBLE:View.GONE); box.addView(patternText);
-        pattern.setListener(v -> patternText.setText(v.length()>0?"התבנית נקלטה":"ציירו את התבנית שלכם"));
-        if(isPattern()) pin.setVisibility(View.GONE);
-        AlertDialog d=new AlertDialog.Builder(this).setTitle(title).setMessage(message).setView(box).setNegativeButton(allowCancel?"ביטול":null,null).setPositiveButton("אישור",null).create();
-        d.setOnShowListener(x -> { styleDialogButtons(d); d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> { String entered=isPattern()?pattern.getPattern():pin.getText().toString(); if(!verifyCredential(entered)){ if(isPattern()) patternText.setText("סיסמה שגויה — נסו שוב"); else pin.setError("סיסמה שגויה"); return;} callback.success(); d.dismiss(); }); });
-        d.show();
+        LinearLayout container =
+                new LinearLayout(this);
+
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setGravity(Gravity.CENTER);
+        container.setPadding(
+                dp(20),
+                dp(10),
+                dp(20),
+                dp(10)
+        );
+
+        TextView message = text(
+                "ציירו תבנית של לפחות 4 נקודות.",
+                16,
+                Color.rgb(70, 85, 105),
+                false
+        );
+
+        message.setGravity(Gravity.CENTER);
+
+        container.addView(
+                message,
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        dp(50))
+        );
+
+        container.addView(
+                patternView,
+                new LinearLayout.LayoutParams(
+                        dp(300),
+                        dp(300))
+        );
+
+        AlertDialog dialog =
+                new AlertDialog.Builder(this)
+                        .setTitle("סיסמת קווים חדשה")
+                        .setView(container)
+                        .setNegativeButton("ביטול", null)
+                        .setPositiveButton("שמירה", null)
+                        .create();
+
+        dialog.setOnShowListener(d -> {
+            Button positive =
+                    dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+
+            positive.setOnClickListener(v -> {
+                String pattern =
+                        patternView.getPattern();
+
+                if (pattern == null || pattern.length() < 4) {
+                    Toast.makeText(
+                            this,
+                            "יש לבחור לפחות 4 נקודות",
+                            Toast.LENGTH_SHORT
+                    ).show();
+                    return;
+                }
+
+                getSharedPreferences(PREFS, MODE_PRIVATE)
+                        .edit()
+                        .putString(PASSWORD, pattern)
+                        .putString(PASSWORD_TYPE, TYPE_PATTERN)
+                        .apply();
+
+                dialog.dismiss();
+
+                Toast.makeText(
+                        this,
+                        "סיסמת הקווים נשמרה בהצלחה",
+                        Toast.LENGTH_SHORT
+                ).show();
+
+                updateState();
+            });
+        });
+
+        dialog.show();
     }
 
-    private void showChangePassword() {
-        final LinearLayout box=new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(20),dp(8),dp(20),0); box.setBackground(gradient(new int[]{Color.rgb(9,40,79),Color.rgb(11,101,128)},22));
-        TextView title=text("בחירת שיטת סיסמה",19,Color.WHITE,true); title.setGravity(Gravity.RIGHT); box.addView(title,new LinearLayout.LayoutParams(-1,dp(42)));
-        Button pinChoice=new Button(this), patternChoice=new Button(this); pinChoice.setText("קוד מספרי"); patternChoice.setText("סיסמת קווים"); styleChoice(pinChoice); styleChoice(patternChoice); box.addView(pinChoice); box.addView(patternChoice);
-        AlertDialog chooser=new AlertDialog.Builder(this).setTitle("שינוי סיסמת מנהל").setMessage("בחרו את הדרך שבה תרצו להגן על אזור הניהול.").setView(box).setNegativeButton("ביטול",null).create();
-        pinChoice.setOnClickListener(v->{chooser.dismiss(); showSetPassword(false);}); patternChoice.setOnClickListener(v->{chooser.dismiss(); showSetPassword(true);});
-        chooser.show(); styleDialogButtons(chooser);
+    private void showCredentialDialog(
+            String title,
+            String message,
+            boolean allowPattern,
+            CredentialCallback callback) {
+
+        String type =
+                getSharedPreferences(PREFS, MODE_PRIVATE)
+                        .getString(PASSWORD_TYPE, TYPE_PIN);
+
+        if (TYPE_PATTERN.equals(type) && allowPattern) {
+            showPatternCredential(title, message, callback);
+        } else {
+            showPinCredential(title, message, callback);
+        }
     }
 
-    private void showSetPassword(boolean patternMode) {
-        final LinearLayout box=new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(20),dp(8),dp(20),0); box.setBackground(gradient(new int[]{Color.rgb(9,40,79),Color.rgb(11,101,128)},22));
-        TextView info=text(patternMode?"קודם אמתו את הסיסמה הנוכחית, ואז ציירו תבנית חדשה.":"קודם אמתו את הסיסמה הנוכחית, ואז הגדירו קוד חדש.",15,Color.WHITE,false); info.setGravity(Gravity.RIGHT); box.addView(info,new LinearLayout.LayoutParams(-1,dp(54)));
-        EditText current=field("הסיסמה הנוכחית"); current.setInputType(isPattern()?InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD:InputType.TYPE_CLASS_NUMBER|InputType.TYPE_NUMBER_VARIATION_PASSWORD); box.addView(current,new LinearLayout.LayoutParams(-1,dp(54)));
-        PatternLockView pv=new PatternLockView(this); EditText next=field(patternMode?"לא בשימוש":"קוד חדש"), confirm=field("אימות הקוד החדש");
-        if(patternMode){ current.setVisibility(View.GONE); TextView cur=text("אמתו את התבנית הנוכחית במסך הבא לאחר השמירה.",14,Color.rgb(220,245,250),false); box.addView(cur); }
-        if(!patternMode){box.addView(next,new LinearLayout.LayoutParams(-1,dp(54)));box.addView(confirm,new LinearLayout.LayoutParams(-1,dp(54)));}
-        else {box.addView(pv,new LinearLayout.LayoutParams(-1,dp(280)));}
-        AlertDialog d=new AlertDialog.Builder(this).setTitle(patternMode?"הגדרת סיסמת קווים":"הגדרת קוד מספרי").setView(box).setNegativeButton("ביטול",null).setPositiveButton("שמירה",null).create();
-        d.setOnShowListener(x->{styleDialogButtons(d);d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{if(patternMode){String pat=pv.getPattern();if(pat.length()<4){Toast.makeText(this,"יש לבחור לפחות 4 נקודות",Toast.LENGTH_SHORT).show();return;}getSharedPreferences(PREFS,0).edit().putString(PASSWORD_TYPE,TYPE_PATTERN).putString(PATTERN,pat).apply();Toast.makeText(this,"סיסמת הקווים נשמרה",Toast.LENGTH_SHORT).show();d.dismiss();}else{if(!verifyCredential(current.getText().toString())){current.setError("סיסמה שגויה");return;}String b=next.getText().toString(),c=confirm.getText().toString();if(b.length()<4){next.setError("הקוד חייב להכיל לפחות 4 ספרות");return;}if(!b.equals(c)){confirm.setError("הקודים אינם זהים");return;}getSharedPreferences(PREFS,0).edit().putString(PASSWORD_TYPE,TYPE_PIN).putString(PASSWORD,b).apply();Toast.makeText(this,"הסיסמה שונתה בהצלחה",Toast.LENGTH_SHORT).show();d.dismiss();}});}); d.show();
+    private void showPinCredential(
+            String title,
+            String message,
+            CredentialCallback callback) {
+
+        final EditText input = new EditText(this);
+
+        input.setInputType(
+                InputType.TYPE_CLASS_NUMBER |
+                        InputType.TYPE_NUMBER_VARIATION_PASSWORD
+        );
+
+        input.setHint("סיסמה");
+        input.setSingleLine(true);
+
+        AlertDialog dialog =
+                new AlertDialog.Builder(this)
+                        .setTitle(title)
+                        .setMessage(message)
+                        .setView(input)
+                        .setNegativeButton("ביטול", null)
+                        .setPositiveButton("אישור", null)
+                        .create();
+
+        dialog.setOnShowListener(d -> {
+            Button positive =
+                    dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+
+            positive.setOnClickListener(v -> {
+                String entered =
+                        input.getText().toString();
+
+                String saved =
+                        getSharedPreferences(PREFS, MODE_PRIVATE)
+                                .getString(PASSWORD, "1234");
+
+                if (saved.equals(entered)) {
+                    dialog.dismiss();
+                    callback.success();
+                } else {
+                    input.setError("סיסמה שגויה");
+                }
+            });
+        });
+
+        dialog.show();
     }
 
-    private void styleChoice(Button b){b.setTextColor(Color.WHITE);b.setTextSize(16);b.setAllCaps(false);b.setBackground(gradient(new int[]{Color.rgb(26,198,183),Color.rgb(38,112,214)},18));LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(52));lp.setMargins(0,dp(6),0,dp(6));b.setLayoutParams(lp);}
-    private boolean isPattern(){return TYPE_PATTERN.equals(getSharedPreferences(PREFS,0).getString(PASSWORD_TYPE,TYPE_PIN));}
-    private boolean verifyCredential(String entered){if(isPattern())return entered.equals(getSharedPreferences(PREFS,0).getString(PATTERN,""));return entered.equals(getPassword());}
+    private void showPatternCredential(
+            String title,
+            String message,
+            CredentialCallback callback) {
 
-    private AlertDialog dialog(String title, String message, View view, String positive) {
-        AlertDialog d=new AlertDialog.Builder(this).setTitle(title).setMessage(message).setView(view).setNegativeButton("ביטול",null).setPositiveButton(positive,null).create();
-        return d;
+        PatternLockView patternView =
+                new PatternLockView(this);
+
+        LinearLayout container =
+                new LinearLayout(this);
+
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setGravity(Gravity.CENTER);
+        container.setPadding(
+                dp(15),
+                dp(5),
+                dp(15),
+                dp(5)
+        );
+
+        TextView info = text(
+                message,
+                16,
+                Color.rgb(70, 85, 105),
+                false
+        );
+
+        info.setGravity(Gravity.CENTER);
+
+        container.addView(
+                info,
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        dp(55))
+        );
+
+        container.addView(
+                patternView,
+                new LinearLayout.LayoutParams(
+                        dp(300),
+                        dp(300))
+        );
+
+        AlertDialog dialog =
+                new AlertDialog.Builder(this)
+                        .setTitle(title)
+                        .setView(container)
+                        .setNegativeButton("ביטול", null)
+                        .setPositiveButton("אישור", null)
+                        .create();
+
+        dialog.setOnShowListener(d -> {
+            Button positive =
+                    dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+
+            positive.setOnClickListener(v -> {
+                String entered =
+                        patternView.getPattern();
+
+                String saved =
+                        getSharedPreferences(PREFS, MODE_PRIVATE)
+                                .getString(PASSWORD, "");
+
+                if (entered != null &&
+                        entered.equals(saved)) {
+
+                    dialog.dismiss();
+                    callback.success();
+
+                } else {
+                    Toast.makeText(
+                            this,
+                            "תבנית שגויה",
+                            Toast.LENGTH_SHORT
+                    ).show();
+
+                    patternView.clearPattern();
+                }
+            });
+        });
+
+        dialog.show();
     }
-
-    private void styleDialogButtons(AlertDialog d) {
-        if(d.getWindow()!=null) d.getWindow().setBackgroundDrawable(gradient(new int[]{Color.rgb(10,38,72),Color.rgb(9,93,119)},24));
-        if(d.getButton(AlertDialog.BUTTON_POSITIVE)!=null){d.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(Color.rgb(30,200,175));d.getButton(AlertDialog.BUTTON_POSITIVE).setAllCaps(false);}
-        if(d.getButton(AlertDialog.BUTTON_NEGATIVE)!=null){d.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(Color.rgb(190,220,235));d.getButton(AlertDialog.BUTTON_NEGATIVE).setAllCaps(false);}
-    }
-
-    private EditText field(String hint) { EditText e=new EditText(this); e.setHint(hint); e.setHintTextColor(Color.rgb(190,220,235)); e.setTextColor(Color.WHITE); e.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD); e.setPadding(dp(8),dp(7),dp(8),dp(7)); return e; }
-    private LinearLayout dialogBox(View... views){LinearLayout b=new LinearLayout(this);b.setOrientation(LinearLayout.VERTICAL);b.setPadding(dp(20),dp(4),dp(20),0);for(View v:views)b.addView(v);return b;}
 
     private void showAbout() {
-        LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setGravity(Gravity.CENTER);box.setPadding(dp(26),dp(18),dp(26),dp(18));box.setBackground(gradient(new int[]{Color.rgb(9,39,78),Color.rgb(12,117,136),Color.rgb(77,40,140)},24));
-        ImageView icon=new ImageView(this);icon.setImageResource(R.drawable.ic_guard);box.addView(icon,new LinearLayout.LayoutParams(dp(86),dp(86)));
-        TextView title=text("Safe Steps",25,Color.WHITE,true);box.addView(title);TextView tag=text("צעדים בטוחים בשבילך",14,Color.rgb(220,245,250),false);box.addView(tag);
-        TextView copy=text("© כל הזכויות שמורות לישראל מויאל.\nליצירת קשר פנו במייל: inm758595@gmail.com",14,Color.WHITE,false);box.addView(copy,new LinearLayout.LayoutParams(-1,dp(70)));
-        new AlertDialog.Builder(this).setTitle("אודות").setView(box).setPositiveButton("סגירה",null).show();
+        AlertDialog dialog =
+                new AlertDialog.Builder(this)
+                        .setTitle("אודות Safe Steps")
+                        .setMessage(
+                                "Safe Steps\n\n" +
+                                "צעדים בטוחים בשבילך\n\n" +
+                                "© כל הזכויות שמורות לישראל מויאל.\n\n" +
+                                "ליצירת קשר פנו במייל:\n" +
+                                "inm758595@gmail.com"
+                        )
+                        .setPositiveButton("סגירה", null)
+                        .create();
+
+        dialog.show();
     }
 
-    private void showBlockedPage() { // fallback only; normal blocking uses the accessibility overlay
-        Intent i=new Intent(Intent.ACTION_MAIN); i.addCategory(Intent.CATEGORY_HOME); i.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK); startActivity(i); finish();
+    private void updateState() {
+        if (statusText == null) {
+            return;
+        }
+
+        android.content.SharedPreferences prefs =
+                getSharedPreferences(PREFS, MODE_PRIVATE);
+
+        boolean enabled =
+                prefs.getBoolean(ENABLED, false);
+
+        String type =
+                prefs.getString(PASSWORD_TYPE, TYPE_PIN);
+
+        if (enabled) {
+            statusText.setText("● ההגנה פעילה");
+            statusText.setTextColor(
+                    Color.rgb(20, 150, 95)
+            );
+        } else {
+            statusText.setText("● ההגנה כבויה");
+            statusText.setTextColor(
+                    Color.rgb(210, 80, 70)
+            );
+        }
+
+        if (TYPE_PATTERN.equals(type)) {
+            passwordTypeText.setText(
+                    "סוג סיסמת מנהל: סיסמת קווים"
+            );
+        } else {
+            passwordTypeText.setText(
+                    "סוג סיסמת מנהל: סיסמה מספרית"
+            );
+        }
     }
 
-    private String getPassword(){ return getSharedPreferences(PREFS,0).getString(PASSWORD,DEFAULT_PASSWORD); }
-    private boolean isEnabled(){ return getSharedPreferences(PREFS,0).getBoolean(ENABLED,false); }
-    private void updateState(){ if(state!=null){state.setText(isEnabled()?"ההגנה פעילה":"ההגנה כבויה"); state.setTextColor(isEnabled()?Color.rgb(0,145,105):Color.rgb(170,75,55));} }
+    private LinearLayout createCard() {
+        LinearLayout card = new LinearLayout(this);
+
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(
+                dp(20),
+                dp(20),
+                dp(20),
+                dp(20)
+        );
+
+        android.graphics.drawable.GradientDrawable background =
+                new android.graphics.drawable.GradientDrawable();
+
+        background.setColor(Color.WHITE);
+        background.setCornerRadius(dp(22));
+        background.setStroke(
+                dp(1),
+                Color.rgb(225, 232, 240)
+        );
+
+        card.setBackground(background);
+
+        return card;
+    }
+
+    private TextView text(
+            String value,
+            float size,
+            int color,
+            boolean bold) {
+
+        TextView view = new TextView(this);
+
+        view.setText(value);
+        view.setTextSize(size);
+        view.setTextColor(color);
+
+        if (bold) {
+            view.setTypeface(
+                    Typeface.DEFAULT,
+                    Typeface.BOLD
+            );
+        }
+
+        return view;
+    }
+
+    private LinearLayout.LayoutParams cardParams() {
+        LinearLayout.LayoutParams params =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+
+        params.bottomMargin = dp(16);
+
+        return params;
+    }
+
+    private LinearLayout.LayoutParams matchWrap() {
+        return new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+    }
+
+    private int dp(float value) {
+        return (int) (
+                value *
+                        getResources()
+                                .getDisplayMetrics()
+                                .density +
+                        0.5f
+        );
+    }
+
+    private interface CredentialCallback {
+        void success();
+    }
 }
